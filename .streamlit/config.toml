@@ -1,0 +1,7 @@
+[server]
+# Tamaño máximo de carga en MB
+maxUploadSize = 1000
+
+[browser]
+# Recolección automática de estadísticas de uso deshabilitada
+gatherUsageStats = false
