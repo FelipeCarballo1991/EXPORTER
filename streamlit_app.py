@@ -8,6 +8,7 @@ import os
 import logging
 from datetime import datetime
 import traceback
+import json
 
 # Configurar logging
 log_dir = Path('logs')
@@ -35,8 +36,8 @@ if not logger.handlers:
 
 st.set_page_config(page_title="Lector de Archivos", page_icon="📊", layout="wide")
 
-st.title("📊 Lector de Archivos HTML, CSV y TXT")
-st.write("Sube un archivo HTML (con tablas), CSV o TXT y convertilo a Excel o CSV")
+st.title("📊 Lector de Archivos")
+st.write("Sube un archivo y conviértelo a Excel o CSV")
 
 # Inicializar session_state para cachear las tablas
 if 'tables' not in st.session_state:
@@ -44,7 +45,7 @@ if 'tables' not in st.session_state:
     st.session_state.file_id = None
 
 # Upload del archivo
-uploaded_file = st.file_uploader("Selecciona un archivo HTML, CSV o TXT", type=['html','csv','txt'])
+uploaded_file = st.file_uploader("Selecciona un archivo", type=['html','csv','txt','xlsx','json','tsv'])
 
 if uploaded_file is not None:
     # Crear un identificador único del archivo (nombre + tamaño)
@@ -114,21 +115,190 @@ if uploaded_file is not None:
                 
                 with col2:
                     st.subheader("📈 Estadísticas")
-                    st.metric("Filas", df.shape[0])
+                    
+                    # Dimensiones
+                    st.metric("Filas", f"{df.shape[0]:,}")
                     st.metric("Columnas", df.shape[1])
+                    
+                    # Memoria usada
+                    memory_usage = df.memory_usage(deep=True).sum() / 1024**2  # MB
+                    st.metric("Memoria", f"{memory_usage:.2f} MB")
+                    
+                    st.divider()
                     
                     # Valores nulos
                     null_count = df.isnull().sum().sum()
-                    st.metric("Valores Nulos", null_count)
+                    null_percentage = (null_count / (df.shape[0] * df.shape[1]) * 100) if df.shape[0] > 0 else 0
+                    st.metric("Valores Nulos", f"{null_count:,}", delta=f"{null_percentage:.1f}%" if null_count > 0 else None)
                     
-                    # Valores duplicados
-                    dup_count = df.duplicated().sum()
-                    st.metric("Filas Duplicadas", dup_count)
+                    # Valores duplicados (con manejo de tipos no hashables)
+                    try:
+                        dup_count = df.duplicated().sum()
+                        dup_percentage = (dup_count / df.shape[0] * 100) if df.shape[0] > 0 else 0
+                        st.metric("Filas Duplicadas", f"{dup_count:,}", delta=f"{dup_percentage:.1f}%" if dup_count > 0 else None)
+                    except (TypeError, ValueError) as e:
+                        logger.warning(f"No se pudo calcular duplicados para tabla {i+1}: {str(e)}")
+                        st.metric("Filas Duplicadas", "N/A")
+                        st.caption("⚠️ Datos anidados detectados")
                     
-                    st.write("**Tipos de datos:**")
+                    st.divider()
+                    
+                    # Tipos de datos
+                    st.write("**🔢 Tipos de datos:**")
                     type_counts = df.dtypes.value_counts()
                     for dtype, count in type_counts.items():
-                        st.write(f"• {dtype}: {count}")
+                        st.write(f"• `{dtype}`: {count} col{'s' if count > 1 else ''}")
+                    
+                    # Detectar columnas con datos anidados
+                    nested_cols = []
+                    nested_info = {}  # Para guardar info sobre el tipo de anidamiento
+                    for col in df.columns:
+                        if df[col].dtype == 'object':
+                            sample = df[col].dropna().head(1)
+                            if len(sample) > 0:
+                                sample_value = sample.iloc[0]
+                                if isinstance(sample_value, dict):
+                                    nested_cols.append(col)
+                                    nested_info[col] = "dict"
+                                elif isinstance(sample_value, list):
+                                    nested_cols.append(col)
+                                    # Verificar qué contiene la lista
+                                    if len(sample_value) > 0:
+                                        if isinstance(sample_value[0], dict):
+                                            nested_info[col] = f"list[dict] ({len(sample_value)} items)"
+                                        else:
+                                            nested_info[col] = f"list[{type(sample_value[0]).__name__}]"
+                                    else:
+                                        nested_info[col] = "list (vacía)"
+                    
+                    if nested_cols:
+                        st.divider()
+                        st.write("**⚠️ Columnas anidadas detectadas:**")
+                        for col in nested_cols:
+                            col_type = nested_info.get(col, "unknown")
+                            st.caption(f"• {col}: `{col_type}`")
+                
+                # Sección para desanidar columnas
+                st.divider()
+                if nested_cols:
+                    st.subheader("🔓 Desanidar Columnas JSON")
+                    
+                    # Verificar si hay listas de diccionarios
+                    has_list_of_dicts = any("list[dict]" in nested_info.get(col, "") for col in nested_cols)
+                    
+                    if has_list_of_dicts:
+                        st.info("💡 Se detectaron columnas con **listas de diccionarios** (ej: `[{'key': 'value'}]`). El desanidado tomará el **primer elemento** de cada lista.")
+                    else:
+                        st.info("💡 Se detectaron columnas con datos anidados. Puedes aplanarlas para facilitar la exportación.")
+                    
+                    flatten_option = st.radio(
+                        "¿Cómo deseas manejar las columnas anidadas?",
+                        options=[
+                            "Mantener original (puede causar problemas)",
+                            "Convertir a JSON string",
+                            "Desanidar columnas (flatten)"
+                        ],
+                        key=f"flatten_option_{i}",
+                        help="Elige cómo procesar las columnas con datos anidados"
+                    )
+                    
+                    if flatten_option == "Convertir a JSON string":
+                        # Convertir columnas anidadas a strings JSON
+                        for col in nested_cols:
+                            df_modified[col] = df_modified[col].apply(
+                                lambda x: json.dumps(x, ensure_ascii=False) if isinstance(x, (dict, list)) else x
+                            )
+                        st.success(f"✅ {len(nested_cols)} columna(s) convertida(s) a JSON string")
+                    
+                    elif flatten_option == "Desanidar columnas (flatten)":
+                        # Desanidar columnas con diccionarios
+                        try:
+                            cols_processed = 0
+                            for col in nested_cols:
+                                # Verificar el tipo de dato en la columna
+                                sample = df_modified[col].dropna().head(1)
+                                
+                                if len(sample) == 0:
+                                    continue
+                                
+                                sample_value = sample.iloc[0]
+                                
+                                # Caso 1: Diccionario simple
+                                if isinstance(sample_value, dict):
+                                    # Normalizar la columna
+                                    normalized = pd.json_normalize(df_modified[col].dropna())
+                                    # Renombrar columnas con el prefijo
+                                    normalized.columns = [f"{col}.{subcol}" for subcol in normalized.columns]
+                                    # Reindexar para mantener los índices originales
+                                    normalized.index = df_modified[col].dropna().index
+                                    # Eliminar la columna original
+                                    df_modified = df_modified.drop(columns=[col])
+                                    # Agregar las nuevas columnas
+                                    for new_col in normalized.columns:
+                                        df_modified[new_col] = normalized[new_col]
+                                    cols_processed += 1
+                                    logger.info(f"Columna '{col}' desanidada (dict simple)")
+                                
+                                # Caso 2: Lista que contiene diccionarios
+                                elif isinstance(sample_value, list) and len(sample_value) > 0:
+                                    # Verificar si la lista contiene diccionarios
+                                    first_item = sample_value[0] if len(sample_value) > 0 else None
+                                    
+                                    if isinstance(first_item, dict):
+                                        # Opción: Tomar solo el primer elemento de la lista
+                                        def extract_first_dict(x):
+                                            if isinstance(x, list) and len(x) > 0 and isinstance(x[0], dict):
+                                                return x[0]
+                                            elif isinstance(x, dict):
+                                                return x
+                                            return None
+                                        
+                                        # Extraer el primer diccionario de cada lista
+                                        extracted = df_modified[col].apply(extract_first_dict)
+                                        
+                                        # Normalizar los diccionarios extraídos
+                                        normalized = pd.json_normalize(extracted.dropna())
+                                        
+                                        if not normalized.empty:
+                                            # Renombrar columnas con el prefijo
+                                            normalized.columns = [f"{col}.{subcol}" for subcol in normalized.columns]
+                                            # Reindexar
+                                            normalized.index = extracted.dropna().index
+                                            # Eliminar la columna original
+                                            df_modified = df_modified.drop(columns=[col])
+                                            # Agregar las nuevas columnas
+                                            for new_col in normalized.columns:
+                                                df_modified[new_col] = normalized[new_col]
+                                            cols_processed += 1
+                                            logger.info(f"Columna '{col}' desanidada (lista de dicts)")
+                                        else:
+                                            # Si falla, convertir a JSON string
+                                            df_modified[col] = df_modified[col].apply(
+                                                lambda x: json.dumps(x, ensure_ascii=False) if isinstance(x, list) else x
+                                            )
+                                            logger.warning(f"Columna '{col}' convertida a JSON string (normalización falló)")
+                                    else:
+                                        # Lista de valores simples, convertir a string
+                                        df_modified[col] = df_modified[col].apply(
+                                            lambda x: json.dumps(x, ensure_ascii=False) if isinstance(x, list) else x
+                                        )
+                                        logger.info(f"Columna '{col}' convertida a JSON string (lista simple)")
+                            
+                            if cols_processed > 0:
+                                logger.info(f"Tabla {i+1}: {cols_processed} columnas desanidadas exitosamente")
+                                st.success(f"✅ {cols_processed} columna(s) desanidadas exitosamente")
+                                new_cols = df_modified.shape[1] - df.shape[1]
+                                if new_cols > 0:
+                                    st.caption(f"💡 Se crearon {new_cols} nuevas columnas")
+                            else:
+                                st.warning("⚠️ No se pudo desanidar ninguna columna. Intenta 'Convertir a JSON string'")
+                                
+                        except Exception as e:
+                            logger.error(f"Error al desanidar columnas: {str(e)}")
+                            logger.error(f"Traceback: {traceback.format_exc()}")
+                            st.error(f"❌ Error al desanidar: {str(e)}")
+                            st.info("💡 Intenta usar 'Convertir a JSON string' como alternativa")
+                            st.info("💡 Intenta usar 'Convertir a JSON string' como alternativa")
                 
                 # Sección de Edición de Columnas
                 st.divider()
@@ -327,7 +497,7 @@ else:
     st.session_state.tables = None
     st.session_state.file_id = None
     
-    st.info("👆 Por favor, sube un archivo HTML para comenzar")    
+    st.info("👆 Por favor, sube un archivo para comenzar")    
     # Sección de ayuda y características
     st.divider()
     st.header("✨ Características")
@@ -343,12 +513,15 @@ else:
     with col2:
         st.subheader("📈 Estadísticas")
         st.write("• Cantidad de filas y columnas")
-        st.write("• Detección de valores nulos")
-        st.write("• Identificación de duplicados")
+        st.write("• Uso de memoria del dataset")
+        st.write("• Valores nulos con porcentajes")
+        st.write("• Filas duplicadas con porcentajes")
         st.write("• Tipos de datos por columna")
+        st.write("• Detección de columnas anidadas")
     
     with col3:
         st.subheader("💾 Exportación Flexible")
+        st.write("• Desanidar columnas JSON")
         st.write("• Selecciona tablas específicas")
         st.write("• Elimina columnas innecesarias")
         st.write("• Renombra columnas fácilmente")
@@ -366,7 +539,7 @@ with st.sidebar:
     
     st.subheader("📖 Instrucciones")
     st.write("""
-    1. Sube un archivo HTML con tablas
+    1. Sube un archivo con tablas
     2. Revisa la vista previa y estadísticas
     3. Edita columnas (eliminar/renombrar)
     4. Selecciona las tablas a exportar
@@ -378,7 +551,7 @@ with st.sidebar:
     st.divider()
     
     st.subheader("🎯 Formatos Soportados")
-    st.write("• **Entrada:** HTML")
+    st.write("• **Entrada:** HTML, CSV, TXT, XLSX, JSON, TSV")
     st.write("• **Salida:** Excel (.xlsx), CSV (.csv)")
     
     st.divider()

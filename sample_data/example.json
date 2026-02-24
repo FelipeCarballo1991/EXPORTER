@@ -1,0 +1,49 @@
+[
+    {
+        "transaction_id": "TXN-2025-001",
+        "date": "2025-02-01",
+        "customer": {
+            "id": "CUST-1234",
+            "name": "Tech Solutions Inc",
+            "type": "Corporate"
+        },
+        "items": [
+            {"product": "Software License", "quantity": 10, "unit_price": 299.99},
+            {"product": "Support Package", "quantity": 1, "unit_price": 499.00}
+        ],
+        "total": 3499.90,
+        "payment_method": "Credit Card",
+        "status": "Completed"
+    },
+    {
+        "transaction_id": "TXN-2025-002",
+        "date": "2025-02-05",
+        "customer": {
+            "id": "CUST-5678",
+            "name": "Digital Ventures LLC",
+            "type": "Corporate"
+        },
+        "items": [
+            {"product": "Cloud Storage", "quantity": 5, "unit_price": 149.99},
+            {"product": "API Access", "quantity": 3, "unit_price": 89.99}
+        ],
+        "total": 1019.92,
+        "payment_method": "Bank Transfer",
+        "status": "Pending"
+    },
+    {
+        "transaction_id": "TXN-2025-003",
+        "date": "2025-02-10",
+        "customer": {
+            "id": "CUST-9012",
+            "name": "Innovation Labs",
+            "type": "Startup"
+        },
+        "items": [
+            {"product": "Enterprise Plan", "quantity": 1, "unit_price": 1999.00}
+        ],
+        "total": 1999.00,
+        "payment_method": "PayPal",
+        "status": "Completed"
+    }
+]

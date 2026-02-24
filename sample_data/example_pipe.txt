@@ -1,0 +1,8 @@
+order_id|customer_name|city|country|total_amount|order_date|status
+ORD-001|Alice Johnson|New York|USA|1250.75|2025-02-15|Completed
+ORD-002|Bob Williams|London|UK|890.50|2025-02-16|Pending
+ORD-003|Carlos Mendez|Madrid|Spain|2100.00|2025-02-17|Completed
+ORD-004|Diana Chen|Shanghai|China|1575.25|2025-02-18|Shipped
+ORD-005|Erik Larsen|Oslo|Norway|950.00|2025-02-19|Processing
+ORD-006|Fatima Ahmed|Dubai|UAE|3200.50|2025-02-20|Completed
+ORD-007|George Kim|Seoul|South Korea|1680.75|2025-02-21|Shipped
