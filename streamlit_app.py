@@ -45,7 +45,7 @@ if 'tables' not in st.session_state:
     st.session_state.file_id = None
 
 # Upload del archivo
-uploaded_file = st.file_uploader("Selecciona un archivo", type=['html','csv','txt','xlsx','json','tsv'])
+uploaded_file = st.file_uploader("Selecciona un archivo", type=['html', 'csv', 'txt', 'xlsx', 'json', 'tsv'])
 
 if uploaded_file is not None:
     # Crear un identificador único del archivo (nombre + tamaño)
@@ -67,8 +67,8 @@ if uploaded_file is not None:
                 logger.info(f"Archivo temporal creado: {tmp_path}")
                 
                 # Factory para leer tablas
-                factory = ReaderFactory()                
-                tables = factory.create_reader(tmp_path).read_all(tmp_path)                
+                factory = ReaderFactory()
+                tables = factory.create_reader(tmp_path).read_all(tmp_path)
                 
                 logger.info(f"Se extrajeron {len(tables)} tabla(s) exitosamente")
                 
@@ -298,7 +298,6 @@ if uploaded_file is not None:
                             logger.error(f"Traceback: {traceback.format_exc()}")
                             st.error(f"❌ Error al desanidar: {str(e)}")
                             st.info("💡 Intenta usar 'Convertir a JSON string' como alternativa")
-                            st.info("💡 Intenta usar 'Convertir a JSON string' como alternativa")
                 
                 # Sección de Edición de Columnas
                 st.divider()
@@ -381,7 +380,7 @@ if uploaded_file is not None:
         
         # Sección de Exportación
         st.divider()
-        st.header("💾 Exportación")        
+        st.header("💾 Exportación")
         
         # Contar tablas seleccionadas
         num_selected = sum(selected_tables)
@@ -412,7 +411,7 @@ if uploaded_file is not None:
                         # Crear carpeta output si no existe
                         output_dir = Path('output')
                         output_dir.mkdir(exist_ok=True)
-
+                        
                         exporter = FileExporter(output_dir=output_dir)
                         
                         # Exportar según formato seleccionado
@@ -421,11 +420,9 @@ if uploaded_file is not None:
                             csv_files = []
                             tabla_counter = 1
                             for i, df in enumerate(modified_tables):
-                                if selected_tables[i]:                                    
-
-                                    csv_path = output_dir / f'{nombre_archivo}_tabla_{tabla_counter}.csv'                                    
-                                    exporter.export_tables(df,method = "csv", filename=f'{nombre_archivo}_tabla_{tabla_counter}.csv') 
-                                    # df.to_csv(csv_path, index=include_index, encoding='utf-8-sig')
+                                if selected_tables[i]:
+                                    csv_path = output_dir / f'{nombre_archivo}_tabla_{tabla_counter}.csv'
+                                    exporter.export_tables(df, method="csv", filename=f'{nombre_archivo}_tabla_{tabla_counter}.csv')
                                     csv_files.append(csv_path)
                                     logger.info(f"CSV exportado: {csv_path.name} ({df.shape[0]} filas, {df.shape[1]} columnas)")
                                     tabla_counter += 1
@@ -448,19 +445,8 @@ if uploaded_file is not None:
                         else:
                             # Intentar exportar a Excel
                             try:
-                                #MODIFICADOOOO
-                                output_path = output_dir / f'{nombre_archivo}.xlsx'                                
+                                output_path = output_dir / f'{nombre_archivo}.xlsx'
                                 exporter.export_tables(modified_tables, filename=f'{nombre_archivo}.xlsx')
-
-                                # with pd.ExcelWriter(output_path, engine='openpyxl') as writer:
-                                #     sheet_counter = 1
-                                #     for i, df in enumerate(modified_tables):
-                                #         if selected_tables[i]:
-                                #             df.to_excel(writer, sheet_name=f'Tabla{sheet_counter}', index=include_index)
-                                #             logger.info(f"Hoja Excel creada: Tabla{sheet_counter} ({df.shape[0]} filas, {df.shape[1]} columnas)")
-                                #             sheet_counter += 1
-
-
                                 
                                 logger.info(f"Exportación Excel completada: {output_path.name}")
                                 st.success(f"✅ Archivo exportado a Excel exitosamente!")
@@ -518,7 +504,8 @@ else:
     st.session_state.tables = None
     st.session_state.file_id = None
     
-    st.info("👆 Por favor, sube un archivo para comenzar")    
+    st.info("👆 Por favor, sube un archivo para comenzar")
+    
     # Sección de ayuda y características
     st.divider()
     st.header("✨ Características")
