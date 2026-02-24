@@ -29,7 +29,12 @@ python -m venv .venv
 
 3. Instala las dependencias:
 ```bash
-pip install streamlit pandas openpyxl pandas-toolkit
+pip install -r requirements.txt
+```
+
+4. Instala pandas-toolkit desde el repositorio:
+```bash
+pip install git+https://github.com/FelipeCarballo1991/EDA-toolkit.git
 ```
 
 ## 🚀 Uso
