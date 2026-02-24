@@ -304,51 +304,69 @@ if uploaded_file is not None:
                 st.divider()
                 st.subheader("✏️ Editar Columnas")
                 
-                # Opción para eliminar columnas
-                st.write("**🗑️ Eliminar Columnas**")
-                cols_to_remove = st.multiselect(
-                    "Selecciona las columnas que deseas eliminar:",
-                    options=list(df_modified.columns),
-                    key=f"remove_cols_{i}",
-                    help="Las columnas seleccionadas se eliminarán antes de exportar"
-                )
-                
-                if cols_to_remove:
-                    df_modified = df_modified.drop(columns=cols_to_remove)
-                    st.info(f"✅ Se eliminarán {len(cols_to_remove)} columna(s)")
-                
-                # Opción para renombrar columnas
-                st.write("**✏️ Renombrar Columnas**")
-                rename_expander = st.expander("Cambiar nombres de columnas")
-                with rename_expander:
-                    rename_dict = {}
-                    remaining_cols = [col for col in df.columns if col not in cols_to_remove]
+                # Usar un formulario para que los cambios no se apliquen inmediatamente
+                with st.form(key=f"edit_columns_form_{i}"):
+                    st.info("💡 Realiza todos los cambios que necesites y luego haz clic en 'Aplicar Cambios'")
                     
-                    if remaining_cols:
-                        st.write("Ingresa los nuevos nombres (deja en blanco para mantener el original):")
-                        col_rename_left, col_rename_right = st.columns(2)
+                    # Opción para eliminar columnas
+                    st.write("**🗑️ Eliminar Columnas**")
+                    cols_to_remove = st.multiselect(
+                        "Selecciona las columnas que deseas eliminar:",
+                        options=list(df_modified.columns),
+                        key=f"remove_cols_{i}",
+                        help="Las columnas seleccionadas se eliminarán antes de exportar"
+                    )
+                    
+                    # Opción para renombrar columnas
+                    st.write("**✏️ Renombrar Columnas**")
+                    rename_expander = st.expander("Cambiar nombres de columnas")
+                    with rename_expander:
+                        rename_dict = {}
+                        remaining_cols = [col for col in df_modified.columns if col not in cols_to_remove]
                         
-                        for idx, col in enumerate(remaining_cols):
-                            with col_rename_left if idx % 2 == 0 else col_rename_right:
-                                new_name = st.text_input(
-                                    f"**{col}**",
-                                    value="",
-                                    key=f"rename_{i}_{col}",
-                                    placeholder=f"Nuevo nombre para '{col}'"
-                                )
-                                if new_name and new_name != col:
-                                    rename_dict[col] = new_name
-                        
-                        if rename_dict:
-                            df_modified = df_modified.rename(columns=rename_dict)
-                            st.success(f"✅ Se renombrarán {len(rename_dict)} columna(s)")
-                    else:
-                        st.warning("No hay columnas disponibles para renombrar (todas fueron eliminadas)")
+                        if remaining_cols:
+                            st.write("Ingresa los nuevos nombres (deja en blanco para mantener el original):")
+                            col_rename_left, col_rename_right = st.columns(2)
+                            
+                            for idx, col in enumerate(remaining_cols):
+                                with col_rename_left if idx % 2 == 0 else col_rename_right:
+                                    new_name = st.text_input(
+                                        f"**{col}**",
+                                        value="",
+                                        key=f"rename_{i}_{col}",
+                                        placeholder=f"Nuevo nombre para '{col}'"
+                                    )
+                                    if new_name and new_name != col:
+                                        rename_dict[col] = new_name
+                        else:
+                            st.warning("No hay columnas disponibles para renombrar")
+                    
+                    # Botón para aplicar cambios
+                    submit_button = st.form_submit_button(
+                        "🔄 Aplicar Cambios",
+                        type="primary",
+                        use_container_width=True
+                    )
                 
-                # Vista previa de cambios
-                if cols_to_remove or rename_dict:
-                    st.write("**👀 Vista Previa con Cambios:**")
-                    st.dataframe(df_modified.head(5), width='stretch')
+                # Aplicar cambios solo cuando se presiona el botón
+                if submit_button:
+                    if cols_to_remove:
+                        df_modified = df_modified.drop(columns=cols_to_remove)
+                        st.success(f"✅ Se eliminaron {len(cols_to_remove)} columna(s)")
+                    
+                    if rename_dict:
+                        df_modified = df_modified.rename(columns=rename_dict)
+                        st.success(f"✅ Se renombraron {len(rename_dict)} columna(s)")
+                    
+                    # Vista previa de cambios
+                    if cols_to_remove or rename_dict:
+                        st.write("**👀 Vista Previa con Cambios:**")
+                        st.dataframe(df_modified.head(5), width='stretch')
+                    else:
+                        st.info("No se realizaron cambios")
+                elif 'form_submitted' not in st.session_state:
+                    # Mostrar hint inicial
+                    st.caption("👆 Selecciona columnas para eliminar o renombrar, luego haz clic en 'Aplicar Cambios'")
                 
                 # Guardar la tabla modificada
                 modified_tables.append(df_modified)
@@ -363,7 +381,7 @@ if uploaded_file is not None:
         
         # Sección de Exportación
         st.divider()
-        st.header("💾 Exportación")
+        st.header("💾 Exportación")        
         
         # Contar tablas seleccionadas
         num_selected = sum(selected_tables)
@@ -394,6 +412,8 @@ if uploaded_file is not None:
                         # Crear carpeta output si no existe
                         output_dir = Path('output')
                         output_dir.mkdir(exist_ok=True)
+
+                        exporter = FileExporter(output_dir=output_dir)
                         
                         # Exportar según formato seleccionado
                         if export_to_csv:
@@ -401,9 +421,11 @@ if uploaded_file is not None:
                             csv_files = []
                             tabla_counter = 1
                             for i, df in enumerate(modified_tables):
-                                if selected_tables[i]:
-                                    csv_path = output_dir / f'{nombre_archivo}_tabla_{tabla_counter}.csv'
-                                    df.to_csv(csv_path, index=include_index, encoding='utf-8-sig')
+                                if selected_tables[i]:                                    
+
+                                    csv_path = output_dir / f'{nombre_archivo}_tabla_{tabla_counter}.csv'                                    
+                                    exporter.export_tables(df,method = "csv", filename=f'{nombre_archivo}_tabla_{tabla_counter}.csv') 
+                                    # df.to_csv(csv_path, index=include_index, encoding='utf-8-sig')
                                     csv_files.append(csv_path)
                                     logger.info(f"CSV exportado: {csv_path.name} ({df.shape[0]} filas, {df.shape[1]} columnas)")
                                     tabla_counter += 1
@@ -427,8 +449,7 @@ if uploaded_file is not None:
                             # Intentar exportar a Excel
                             try:
                                 #MODIFICADOOOO
-                                output_path = output_dir / f'{nombre_archivo}.xlsx'
-                                exporter = FileExporter(output_dir=output_dir)
+                                output_path = output_dir / f'{nombre_archivo}.xlsx'                                
                                 exporter.export_tables(modified_tables, filename=f'{nombre_archivo}.xlsx')
 
                                 # with pd.ExcelWriter(output_path, engine='openpyxl') as writer:
