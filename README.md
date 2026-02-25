@@ -210,12 +210,3 @@ Los logs se guardan automáticamente en la carpeta `logs/` con formato:
 
 ## 📄 Licencia
 
-Este proyecto es de uso interno.
-
-## 👤 Autor
-
-Desarrollado en EY - 2026
-
----
-
-**¿Problemas o sugerencias?** Abre un issue en el repositorio o contacta al equipo de desarrollo.
